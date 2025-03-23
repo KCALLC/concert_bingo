@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Concert Bingo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+</head>
+<body>
+    <h1>Concert Bingo</h1>
+    <div id="player-name"></div>
+    <div id="sidebar"><strong>Players:</strong><ul id="player-list"></ul></div>
+    <div id="board"></div>
+
+    <script>
+        let socket = io();
+        let playerName = "";
+        let boardState = [];
+
+        function askName() {
+            playerName = prompt("Enter your name:");
+            if (!playerName) {
+                playerName = "Player" + Math.floor(Math.random() * 1000);
+            }
+            document.getElementById("player-name").innerText = "You are: " + playerName;
+            socket.emit('join', { name: playerName });
+        }
+
+        function createBoard(board, isReadOnly = false) {
+            const boardDiv = document.getElementById('board');
+            boardDiv.innerHTML = '';
+            boardState = [];
+
+            board.forEach((row, rowIndex) => {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'row';
+                const rowState = [];
+
+                row.forEach((cell, colIndex) => {
+                    const cellDiv = document.createElement('div');
+                    cellDiv.className = 'cell';
+                    cellDiv.innerText = cell;
+                    if (!isReadOnly) {
+                        cellDiv.onclick = () => toggleCell(cellDiv, rowIndex, colIndex, cell);
+                    }
+                    rowDiv.appendChild(cellDiv);
+                    rowState.push(false);
+                });
+
+                boardDiv.appendChild(rowDiv);
+                boardState.push(rowState);
+            });
+        }
+
+        function toggleCell(cellDiv, row, col, cellText) {
+            const isMarked = cellDiv.classList.contains('marked');
+            if (isMarked) {
+                cellDiv.classList.remove('marked');
+                boardState[row][col] = false;
+            } else {
+                cellDiv.classList.add('marked');
+                boardState[row][col] = true;
+                if (checkBingo()) {
+                    setTimeout(() => {
+                        alert("🎉 Bingo!");
+                        socket.emit('bingo', { name: playerName });
+                    }, 100);
+                }
+            }
+        }
+
+        function checkBingo() {
+            for (let r = 0; r < 5; r++) if (boardState[r].every(c => c)) return true;
+            for (let c = 0; c < 5; c++) if (boardState.map(r => r[c]).every(c => c)) return true;
+            if ([0,1,2,3,4].every(i => boardState[i][i])) return true;
+            if ([0,1,2,3,4].every(i => boardState[i][4 - i])) return true;
+            return false;
+        }
+
+        socket.on('player_list', players => {
+            const list = document.getElementById('player-list');
+            list.innerHTML = '';
+            players.forEach(name => {
+                const li = document.createElement('li');
+                li.innerText = name;
+                li.onclick = () => {
+                    if (name === playerName) {
+                        socket.emit('join', { name: playerName });
+                    } else {
+                        socket.emit('view_player', { target: name });
+                    }
+                };
+                list.appendChild(li);
+            });
+        });
+
+        socket.on('board_data', data => {
+            createBoard(data.board);
+        });
+
+        socket.on('view_board', data => {
+            createBoard(data.board, true);
+        });
+
+        socket.on('bingo_winner', data => {
+            alert(`🎉 ${data.winner} got Bingo! The game is over.`);
+            document.getElementById('board').innerHTML = '';
+        });
+
+        askName();
+    </script>
+</body>
+</html>
