@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit, join_room
 import random
@@ -13,11 +16,10 @@ bingo_phrases = [
     "Man with dreadlocks", "Woman with facial tattoo", "Person wearing a band t-shirt",
     "Group selfie", "Someone crowd surfing", "Spontaneous dance circle",
     "Person with a mohawk", "Fan singing along loudly", "Couple kissing",
-    "Person on someone's shoulders", "Unexpected cover song", "Encore performance",
-    "Technical difficulties", "Special guest appearance", "Merchandise booth line",
-    "Person with face paint", "Fan holding a sign", "Lighter or phone flashlight wave",
-    "Drum solo", "Guitar solo", "Bass solo", "Keyboard solo", "Lead singer interaction",
-    "Confetti or pyrotechnics", "Band autograph session"
+    "Person on someone's shoulders", "Unexpected cover song", "Trifecta - ear, mouth and nose piercings","Technical difficulties", "Special guest appearance", "Full Goth Wearer",
+    "Person with face paint", "Fan holding a sign", "Couple fighting",
+    "Drum solo", "Guitar solo", "Parents with kids", "Chunky-Drunky Person", "Someone wearing t-shirt of band that's playing",
+    "Confetti or pyrotechnics", "Clearly unshowered groupie"
 ]
 
 def generate_board():
