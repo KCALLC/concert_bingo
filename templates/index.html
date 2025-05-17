@@ -1,113 +1,132 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <title>Concert Bingo</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+  <title>Concert Bingo</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
+  <style>
+    table { border-collapse: collapse; margin-top: 10px; }
+    td {
+      border: 1px solid #000;
+      padding: 10px;
+      width: 120px;
+      height: 50px;
+      text-align: center;
+      cursor: pointer;
+    }
+    .marked { background-color: gold; }
+    #player-list span {
+      display: block;
+      cursor: pointer;
+      margin: 5px 0;
+    }
+    .controls button {
+      margin: 5px;
+    }
+  </style>
 </head>
 <body>
-    <h1>Concert Bingo</h1>
-    <div id="player-name"></div>
-    <div id="sidebar"><strong>Players:</strong><ul id="player-list"></ul></div>
-    <div id="board"></div>
+  <h1>Concert Bingo</h1>
 
-    <script>
-        let socket = io();
-        let playerName = "";
-        let boardState = [];
+  <div>
+    <input type="text" id="name" placeholder="Enter your name">
+    <button onclick="joinGame()">Join Game</button>
+  </div>
 
-        function askName() {
-            playerName = prompt("Enter your name:");
-            if (!playerName) {
-                playerName = "Player" + Math.floor(Math.random() * 1000);
-            }
-            document.getElementById("player-name").innerText = "You are: " + playerName;
-            socket.emit('join', { name: playerName });
-        }
+  <div class="controls">
+    <button onclick="startNewGame()">Start New Game</button>
+    <button onclick="resetGame()">Reset Game</button>
+  </div>
 
-        function createBoard(board, isReadOnly = false) {
-            const boardDiv = document.getElementById('board');
-            boardDiv.innerHTML = '';
-            boardState = [];
+  <h3>Players</h3>
+  <div id="player-list"></div>
 
-            board.forEach((row, rowIndex) => {
-                const rowDiv = document.createElement('div');
-                rowDiv.className = 'row';
-                const rowState = [];
+  <h3 id="board-title">Your Board</h3>
+  <div id="bingo-board"></div>
 
-                row.forEach((cell, colIndex) => {
-                    const cellDiv = document.createElement('div');
-                    cellDiv.className = 'cell';
-                    cellDiv.innerText = cell;
-                    if (!isReadOnly) {
-                        cellDiv.onclick = () => toggleCell(cellDiv, rowIndex, colIndex, cell);
-                    }
-                    rowDiv.appendChild(cellDiv);
-                    rowState.push(false);
-                });
+  <h3 id="winner" style="color:red;"></h3>
 
-                boardDiv.appendChild(rowDiv);
-                boardState.push(rowState);
+  <script>
+    const socket = io();
+    let currentPlayer = "";
+    let currentViewing = "";
+
+    function joinGame() {
+      const name = document.getElementById("name").value.trim();
+      if (!name) return alert("Please enter your name.");
+      currentPlayer = name;
+      currentViewing = name;
+      socket.emit("join", { name });
+    }
+
+    function renderBoard(board, marked = []) {
+      const boardDiv = document.getElementById("bingo-board");
+      boardDiv.innerHTML = "";
+      const table = document.createElement("table");
+
+      board.forEach((row, rowIndex) => {
+        const tr = document.createElement("tr");
+        row.forEach((cell, colIndex) => {
+          const td = document.createElement("td");
+          td.textContent = cell;
+          if (marked.some(([r, c]) => r === rowIndex && c === colIndex)) {
+            td.classList.add("marked");
+          }
+          if (currentPlayer === currentViewing) {
+            td.addEventListener("click", () => {
+              td.classList.toggle("marked");
+              socket.emit("mark_square", {
+                name: currentPlayer,
+                row: rowIndex,
+                col: colIndex
+              });
             });
-        }
-
-        function toggleCell(cellDiv, row, col, cellText) {
-            const isMarked = cellDiv.classList.contains('marked');
-            if (isMarked) {
-                cellDiv.classList.remove('marked');
-                boardState[row][col] = false;
-            } else {
-                cellDiv.classList.add('marked');
-                boardState[row][col] = true;
-                if (checkBingo()) {
-                    setTimeout(() => {
-                        alert("🎉 Bingo!");
-                        socket.emit('bingo', { name: playerName });
-                    }, 100);
-                }
-            }
-        }
-
-        function checkBingo() {
-            for (let r = 0; r < 5; r++) if (boardState[r].every(c => c)) return true;
-            for (let c = 0; c < 5; c++) if (boardState.map(r => r[c]).every(c => c)) return true;
-            if ([0,1,2,3,4].every(i => boardState[i][i])) return true;
-            if ([0,1,2,3,4].every(i => boardState[i][4 - i])) return true;
-            return false;
-        }
-
-        socket.on('player_list', players => {
-            const list = document.getElementById('player-list');
-            list.innerHTML = '';
-            players.forEach(name => {
-                const li = document.createElement('li');
-                li.innerText = name;
-                li.onclick = () => {
-                    if (name === playerName) {
-                        socket.emit('join', { name: playerName });
-                    } else {
-                        socket.emit('view_player', { target: name });
-                    }
-                };
-                list.appendChild(li);
-            });
+          }
+          tr.appendChild(td);
         });
+        table.appendChild(tr);
+      });
 
-        socket.on('board_data', data => {
-            createBoard(data.board);
-        });
+      boardDiv.appendChild(table);
+    }
 
-        socket.on('view_board', data => {
-            createBoard(data.board, true);
-        });
+    socket.on("board_data", (data) => {
+      currentViewing = data.name;
+      document.getElementById("board-title").textContent = data.name === currentPlayer ? "Your Board" : `${data.name}'s Board`;
+      renderBoard(data.board, data.marked);
+    });
 
-        socket.on('bingo_winner', data => {
-            alert(`🎉 ${data.winner} got Bingo! The game is over.`);
-            document.getElementById('board').innerHTML = '';
-        });
+    socket.on("view_board", (data) => {
+      currentViewing = data.name;
+      document.getElementById("board-title").textContent = `${data.name}'s Board`;
+      renderBoard(data.board, data.marked);
+    });
 
-        askName();
-    </script>
+    socket.on("player_list", (players) => {
+      const list = document.getElementById("player-list");
+      list.innerHTML = "";
+      players.forEach(name => {
+        const span = document.createElement("span");
+        span.textContent = name;
+        span.onclick = () => socket.emit("view_player", { target: name });
+        list.appendChild(span);
+      });
+    });
+
+    socket.on("bingo_winner", (data) => {
+      document.getElementById("winner").textContent = `${data.winner} has Bingo!`;
+    });
+
+    socket.on("reset_client", () => {
+      location.reload();
+    });
+
+    function startNewGame() {
+      socket.emit("start_new_game");
+    }
+
+    function resetGame() {
+      socket.emit("reset_game");
+    }
+  </script>
 </body>
 </html>
