@@ -35,6 +35,7 @@
   <div class="controls">
     <button onclick="startNewGame()">Start New Game</button>
     <button onclick="resetGame()">Reset Game</button>
+    <button onclick="addTile()">Add New Tile</button>
   </div>
 
   <h3>Players</h3>
@@ -119,6 +120,14 @@
     socket.on("reset_client", () => {
       location.reload();
     });
+
+  function addTile() {
+    const phrase = prompt("Enter your new bingo tile phrase.\nWARNING: This will reset the game for all players.");
+    if (!phrase) return;
+    if (confirm("Are you sure? This will reset the game and remove all players.")) {
+      socket.emit("add_tile", { phrase });
+    }
+  }
 
     function startNewGame() {
       socket.emit("start_new_game");
