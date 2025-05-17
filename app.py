@@ -13,7 +13,7 @@ players = {}  # name -> {board, marked, sid}
 boards = {}   # room -> [names]
 room = 'concert'
 
-bingo_phrases = [
+default_phrases = [
     "Man with dreadlocks", "Woman with facial tattoo", "Person wearing a band t-shirt",
     "Group selfie", "Someone crowd surfing", "Spontaneous dance circle",
     "Person with a mohawk", "Fan singing along loudly", "Couple kissing",
@@ -24,8 +24,11 @@ bingo_phrases = [
     "Someone wearing t-shirt of band that's playing", "Confetti or pyrotechnics", "Clearly unshowered groupie"
 ]
 
+custom_phrases = []
+
 def generate_board():
-    phrases = random.sample(bingo_phrases, 25)
+    all_phrases = default_phrases + custom_phrases
+    phrases = random.sample(all_phrases, 25)
     return [phrases[i:i+5] for i in range(0, 25, 5)]
 
 @app.route('/')
@@ -97,6 +100,13 @@ def handle_reset_game():
     boards[room] = []
     emit('reset_client', room=room)
     emit('player_list', [], room=room)
+
+@socketio.on('add_tile')
+def handle_add_tile(data):
+    new_tile = data['phrase'].strip()
+    if new_tile and new_tile not in custom_phrases and new_tile not in default_phrases:
+        custom_phrases.append(new_tile)
+    handle_reset_game()
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
